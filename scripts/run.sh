@@ -135,6 +135,19 @@ done
 # Header
 echo -e "${CYAN}🚗 Professional Car Image Editor with AI Beautifier v2.0${NC}"
 echo -e "${CYAN}================================================================${NC}"
+echo ""
+
+# Check AI models cache status
+echo -e "${BLUE}🔍 Checking AI models cache...${NC}"
+if [ -d "models/cache/controlnet-canny" ] && [ -d "models/cache/stable-diffusion-v1-5" ]; then
+    echo -e "${GREEN}✅ AI models are cached - processing will be fast${NC}"
+    CACHE_SIZE=$(du -sh models/cache/ 2>/dev/null | cut -f1 || echo "unknown")
+    echo -e "${GREEN}   Cache size: ${CACHE_SIZE}${NC}"
+else
+    echo -e "${YELLOW}⚠️  AI models not cached - first run will download ~3GB${NC}"
+    echo -e "${YELLOW}   To avoid re-downloading: ./scripts/setup_cache.sh${NC}"
+fi
+echo ""
 
 # Check if input file exists
 if [[ ! -f "$INPUT_FILE" ]]; then

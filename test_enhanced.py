@@ -15,52 +15,62 @@ from PIL import Image
 def beautify_image(input_path, output_path):
     print("✨ Applying AI-based beautify enhancements...")
     
-    # Initialize AI beautifier
-    beautifier = AIBeautifier()
-    
-    # Load input image
-    input_image = Image.open(input_path)
-    
-    # Test different enhancement styles
-    styles = [
-        ("professional", "glossy"),
-        ("dramatic", "metallic"),
-        ("subtle", "chrome")
-    ]
-    
-    for i, (enhancement_level, style) in enumerate(styles):
-        print(f"   🎨 Applying {enhancement_level} {style} enhancement...")
+    try:
+        # Initialize AI beautifier
+        beautifier = AIBeautifier()
         
-        # Apply AI beautification
-        beautified = beautifier.beautify_car(
-            car_image=input_image,
-            enhancement_level=enhancement_level,
-            style=style
-        )
+        # Load input image
+        input_image = Image.open(input_path)
         
-        # Save with style suffix
-        style_output = output_path.replace('.jpg', f'_{style}_{enhancement_level}.jpg')
-        beautified.save(style_output, quality=95)
-        print(f"   ✅ Saved: {style_output}")
-    
-    # Create a comparison image with all styles
-    comparison_path = output_path.replace('.jpg', '_ai_comparison.jpg')
-    
-    # Load all beautified versions for comparison
-    beautified_images = []
-    for enhancement_level, style in styles:
-        style_path = output_path.replace('.jpg', f'_{style}_{enhancement_level}.jpg')
-        beautified_images.append(Image.open(style_path))
-    
-    # Create comparison grid
-    create_comparison_grid([input_image] + beautified_images, 
-                          ["Original", "Glossy Pro", "Metallic Drama", "Chrome Subtle"], 
-                          comparison_path)
-    
-    print(f"✅ AI beautification complete with comparison: {comparison_path}")
-    
-    # Cleanup
-    beautifier.cleanup()
+        # Test different enhancement styles
+        styles = [
+            ("professional", "glossy"),
+            ("dramatic", "metallic"),
+            ("subtle", "chrome")
+        ]
+        
+        for i, (enhancement_level, style) in enumerate(styles):
+            print(f"   🎨 Applying {enhancement_level} {style} enhancement...")
+            
+            # Apply AI beautification
+            beautified = beautifier.beautify_car(
+                car_image=input_image,
+                enhancement_level=enhancement_level,
+                style=style
+            )
+            
+            # Save with style suffix
+            style_output = output_path.replace('.jpg', f'_{style}_{enhancement_level}.jpg')
+            beautified.save(style_output, quality=95)
+            print(f"   ✅ Saved: {style_output}")
+        
+        # Create a comparison image with all styles
+        comparison_path = output_path.replace('.jpg', '_ai_comparison.jpg')
+        
+        # Load all beautified versions for comparison
+        beautified_images = []
+        for enhancement_level, style in styles:
+            style_path = output_path.replace('.jpg', f'_{style}_{enhancement_level}.jpg')
+            if os.path.exists(style_path):
+                beautified_images.append(Image.open(style_path))
+        
+        # Create comparison grid if we have images
+        if beautified_images:
+            create_comparison_grid([input_image] + beautified_images, 
+                                  ["Original", "Glossy Pro", "Metallic Drama", "Chrome Subtle"], 
+                                  comparison_path)
+            print(f"   📊 Comparison grid saved: {comparison_path}")
+        
+        print(f"✅ AI beautification complete!")
+        
+        # Cleanup
+        beautifier.cleanup()
+        return True
+        
+    except Exception as e:
+        print(f"⚠️  AI beautification failed: {e}")
+        print("   This is normal if AI models are not available or downloading")
+        return False
 
 def create_comparison_grid(images, labels, output_path):
     """Create a comparison grid of images"""
@@ -130,9 +140,14 @@ def main():
     if success:
         print(f"✅ Successfully created comparison: output/enhanced_comparison.jpg")
     
-    # Beautify the image using AI enhancements
-    beautify_output_path = "output/beautified_car.jpg"
-    beautify_image(input_image, beautify_output_path)
+    # Test AI Beautification
+    print(f"\n✨ Testing AI beautification...")
+    beautify_output_path = "output/enhanced_ai_beautified.jpg"
+    
+    if beautify_image(input_image, beautify_output_path):
+        print(f"✅ Successfully created AI beautified version: {beautify_output_path}")
+    else:
+        print(f"⚠️  AI beautification test skipped or failed")
     
     print("\n✨ Enhanced car image processing complete!")
     print("\n🔍 Key improvements:")

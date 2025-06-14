@@ -36,27 +36,46 @@ class AIBeautifier:
         print("✅ AI Beautifier ready!")
     
     def _load_models(self):
-        """Load ControlNet and Stable Diffusion models with local caching"""
+        """Load ControlNet and Stable Diffusion models with persistent caching"""
         try:
-            # Setup local cache directories
-            cache_dir = Path("models/cache")
+            import os
+            
+            # Setup cache directories with environment variables
+            cache_dir = Path("/app/models/cache")
             cache_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Set Hugging Face cache directories
+            os.environ['TRANSFORMERS_CACHE'] = str(cache_dir)
+            os.environ['HF_HOME'] = str(cache_dir)
+            os.environ['HUGGINGFACE_HUB_CACHE'] = str(cache_dir)
             
             controlnet_cache = cache_dir / "controlnet-canny"
             sd_cache = cache_dir / "stable-diffusion-v1-5"
             
-            # Load ControlNet model for car enhancement
+            print(f"📁 Using cache directory: {cache_dir}")
+            
+            # Load ControlNet model
             print("📥 Loading ControlNet model...")
             if controlnet_cache.exists() and any(controlnet_cache.iterdir()):
-                print("   Using cached ControlNet model...")
-                self.controlnet = ControlNetModel.from_pretrained(
-                    str(controlnet_cache),
-                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
-                    use_safetensors=True,
-                    local_files_only=True
-                )
+                print("   ✅ Using cached ControlNet model...")
+                try:
+                    self.controlnet = ControlNetModel.from_pretrained(
+                        str(controlnet_cache),
+                        torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                        use_safetensors=True,
+                        local_files_only=True
+                    )
+                except Exception as e:
+                    print(f"   ⚠️ Failed to load cached model, downloading: {e}")
+                    self.controlnet = ControlNetModel.from_pretrained(
+                        "lllyasviel/sd-controlnet-canny",
+                        torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                        use_safetensors=True,
+                        cache_dir=str(cache_dir)
+                    )
+                    self.controlnet.save_pretrained(str(controlnet_cache))
             else:
-                print("   Downloading ControlNet model (first time only)...")
+                print("   📥 Downloading ControlNet model (first time)...")
                 self.controlnet = ControlNetModel.from_pretrained(
                     "lllyasviel/sd-controlnet-canny",
                     torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
@@ -64,23 +83,38 @@ class AIBeautifier:
                     cache_dir=str(cache_dir)
                 )
                 # Save to local cache
+                controlnet_cache.mkdir(parents=True, exist_ok=True)
                 self.controlnet.save_pretrained(str(controlnet_cache))
+                print(f"   💾 Cached ControlNet to: {controlnet_cache}")
             
             # Load Stable Diffusion pipeline with ControlNet
             print("📥 Loading Stable Diffusion pipeline...")
             if sd_cache.exists() and any(sd_cache.iterdir()):
-                print("   Using cached Stable Diffusion model...")
-                self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
-                    str(sd_cache),
-                    controlnet=self.controlnet,
-                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
-                    safety_checker=None,
-                    requires_safety_checker=False,
-                    use_safetensors=True,
-                    local_files_only=True
-                )
+                print("   ✅ Using cached Stable Diffusion model...")
+                try:
+                    self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
+                        str(sd_cache),
+                        controlnet=self.controlnet,
+                        torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                        safety_checker=None,
+                        requires_safety_checker=False,
+                        use_safetensors=True,
+                        local_files_only=True
+                    )
+                except Exception as e:
+                    print(f"   ⚠️ Failed to load cached model, downloading: {e}")
+                    self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
+                        "runwayml/stable-diffusion-v1-5",
+                        controlnet=self.controlnet,
+                        torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                        safety_checker=None,
+                        requires_safety_checker=False,
+                        use_safetensors=True,
+                        cache_dir=str(cache_dir)
+                    )
+                    self.pipe.save_pretrained(str(sd_cache))
             else:
-                print("   Downloading Stable Diffusion model (first time only)...")
+                print("   📥 Downloading Stable Diffusion model (first time)...")
                 self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
                     "runwayml/stable-diffusion-v1-5",
                     controlnet=self.controlnet,
@@ -91,7 +125,9 @@ class AIBeautifier:
                     cache_dir=str(cache_dir)
                 )
                 # Save to local cache
+                sd_cache.mkdir(parents=True, exist_ok=True)
                 self.pipe.save_pretrained(str(sd_cache))
+                print(f"   💾 Cached Stable Diffusion to: {sd_cache}")
             
             # Optimize for memory and speed
             self.pipe.scheduler = DDIMScheduler.from_config(self.pipe.scheduler.config)
@@ -109,26 +145,42 @@ class AIBeautifier:
                 except:
                     print("⚠️  XFormers not available, using standard attention")
             
-            # Load img2img pipeline for refinement (reuse the same base model)
+            # Load img2img pipeline for refinement (reuse cached model)
             print("📥 Loading img2img pipeline...")
-            if sd_cache.exists() and any(sd_cache.iterdir()):
-                print("   Using cached model for img2img...")
-                self.img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-                    str(sd_cache),
-                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+            try:
+                # Try to reuse components from main pipeline to save memory
+                self.img2img_pipe = StableDiffusionImg2ImgPipeline(
+                    vae=self.pipe.vae,
+                    text_encoder=self.pipe.text_encoder,
+                    tokenizer=self.pipe.tokenizer,
+                    unet=self.pipe.unet,
+                    scheduler=self.pipe.scheduler,
                     safety_checker=None,
-                    requires_safety_checker=False,
-                    use_safetensors=True,
-                    local_files_only=True
+                    feature_extractor=None,
+                    requires_safety_checker=False
                 )
-            else:
-                print("   Creating img2img pipeline from cached components...")
-                self.img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-                    "runwayml/stable-diffusion-v1-5",
-                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
-                    safety_checker=None,
-                    requires_safety_checker=False,
-                    use_safetensors=True,
+                print("   ✅ Created img2img pipeline from cached components")
+            except Exception as e:
+                print(f"   ⚠️ Failed to reuse components: {e}")
+                # Fallback to loading from cache
+                if sd_cache.exists() and any(sd_cache.iterdir()):
+                    self.img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                        str(sd_cache),
+                        torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                        safety_checker=None,
+                        requires_safety_checker=False,
+                        use_safetensors=True,
+                        local_files_only=True
+                    )
+                else:
+                    self.img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                        "runwayml/stable-diffusion-v1-5",
+                        torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                        safety_checker=None,
+                        requires_safety_checker=False,
+                        use_safetensors=True,
+                        cache_dir=str(cache_dir)
+                    )
                     cache_dir=str(cache_dir)
                 )
             

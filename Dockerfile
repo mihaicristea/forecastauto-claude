@@ -31,6 +31,9 @@ RUN python3 models/download_models.py
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV CUDA_VISIBLE_DEVICES=0
+ENV TRANSFORMERS_CACHE=/app/models/cache
+ENV HF_HOME=/app/models/cache
+ENV HUGGINGFACE_HUB_CACHE=/app/models/cache
 
 CMD ["python3", "src/main.py"]
 
