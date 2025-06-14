@@ -18,6 +18,7 @@ sys.path.insert(0, parent_dir)
 from background_processor import BackgroundProcessor
 from image_enhancer import ImageEnhancer
 from text_overlay import TextOverlay
+from ai_beautifier import AIBeautifier
 
 class CarImageEditor:
     def __init__(self, config_path=None):
@@ -40,6 +41,14 @@ class CarImageEditor:
         self.image_enhancer = ImageEnhancer(self.config)
         self.text_overlay = TextOverlay(self.config)
         
+        # Initialize AI Beautifier
+        print("🤖 Loading AI Beautifier...")
+        try:
+            self.ai_beautifier = AIBeautifier(self.config)
+        except Exception as e:
+            print(f"⚠️  AI Beautifier initialization failed: {e}")
+            self.ai_beautifier = None
+        
         # Initialize advanced segmentation model
         print("🔧 Loading advanced segmentation models...")
         try:
@@ -51,7 +60,10 @@ class CarImageEditor:
             self.rembg_session = new_session()
             print("✅ Loaded standard segmentation model")
     
-    def process_image(self, input_path, output_path, background_type='showroom', logo_text='Forecast AUTO', **kwargs):
+    def process_image(self, input_path, output_path, background_type='showroom', 
+                     custom_background=None, logo_text='Forecast AUTO', 
+                     ai_style='glossy', ai_level='medium', enhance=False, 
+                     quality=95, **kwargs):
         try:
             print(f"\n📸 Processing: {os.path.basename(input_path)}")
             
@@ -79,8 +91,8 @@ class CarImageEditor:
             background = self._create_studio_background(img.size, background_type)
             
             print("✨ Step 3: Professional car enhancement...")
-            # Enhance the car image professionally
-            enhanced_car = self._enhance_car_professional(car_rgba)
+            # Enhance the car image professionally with AI parameters
+            enhanced_car = self._enhance_car_professional(car_rgba, ai_style, ai_level)
             
             print("🏷️  Step 4: Adding Forecast AUTO branding...")
             # Add professional branding
@@ -99,12 +111,28 @@ class CarImageEditor:
             final_image.save(output_path, quality=95, optimize=True)
             
             print(f"✅ Professional car image saved to: {output_path}")
+            
+            # Cleanup AI Beautifier memory if used
+            if self.ai_beautifier is not None:
+                try:
+                    self.ai_beautifier.cleanup()
+                except:
+                    pass
+            
             return True
             
         except Exception as e:
             print(f"❌ Error: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Cleanup on error too
+            if hasattr(self, 'ai_beautifier') and self.ai_beautifier is not None:
+                try:
+                    self.ai_beautifier.cleanup()
+                except:
+                    pass
+            
             return False
     
     def _extract_car_professional(self, image):
@@ -295,8 +323,24 @@ class CarImageEditor:
         black = Image.new('RGB', (width, height), (0, 0, 0))
         return Image.composite(image, black, mask)
     
-    def _enhance_car_professional(self, car_rgba):
-        """Apply professional automotive photography enhancements"""
+    def _enhance_car_professional(self, car_rgba, ai_style='glossy', ai_level='medium'):
+        """Apply professional automotive photography enhancements with AI Beautifier"""
+        # Try AI Beautifier first if style and level are provided
+        if self.ai_beautifier is not None and ai_style and ai_level:
+            try:
+                print(f"   🤖 Applying AI Beautifier ({ai_level} {ai_style})...")
+                # Apply AI beautification with specified parameters
+                enhanced_car = self.ai_beautifier.beautify_car(
+                    car_rgba, 
+                    enhancement_level=ai_level, 
+                    style=ai_style
+                )
+                return enhanced_car
+            except Exception as e:
+                print(f"   ⚠️  AI Beautifier failed, using traditional enhancement: {e}")
+        
+        # Fallback to traditional enhancement
+        print("   🎨 Using traditional enhancement...")
         # Split channels
         r, g, b, a = car_rgba.split()
         

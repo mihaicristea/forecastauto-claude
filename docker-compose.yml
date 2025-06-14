@@ -11,4 +11,30 @@ services:
       - ./input:/app/input
       - ./output:/app/output
       - ./backgrounds:/app/backgrounds
-    command: python3 test_enhanced.py
+    command: python3 src/main.py --input input/car.jpg --output output/edited.jpg
+  
+  # Test AI Beautifier
+  ai-beautifier-test:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./backgrounds:/app/backgrounds
+    command: python3 test_ai_beautifier.py
+  
+  # Demo AI Beautifier
+  ai-beautifier-demo:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./backgrounds:/app/backgrounds
+    command: python3 demo_ai_beautifier.py

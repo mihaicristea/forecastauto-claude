@@ -29,3 +29,39 @@ logo:
 output:
   quality: 95
   format: "JPEG"
+
+# Beautify settings
+beautify:
+  enable: true
+  effects:
+    glossy_paint: true
+    stain_removal: true
+    soft_reflections: true
+  model:
+    controlnet: true
+    stable_diffusion: true
+    lora_trained_on_cars: true
+  output_quality: "professional"
+  
+# AI Beautifier advanced settings
+ai_beautifier:
+  default_enhancement_level: "medium"  # light, medium, strong
+  default_style: "glossy"  # glossy, matte, metallic, luxury
+  inference_steps: 25
+  guidance_scale: 7.5
+  controlnet_conditioning_scale: 0.8
+  memory_optimization: true
+  fallback_to_traditional: true
+  styles:
+    glossy:
+      description: "Mirror-like reflections, wet look"
+      enhancement_factor: 1.2
+    matte:
+      description: "Smooth elegant finish"
+      enhancement_factor: 0.9
+    metallic:
+      description: "Pearl finish with sparkle"
+      enhancement_factor: 1.1
+    luxury:
+      description: "Premium showroom quality"
+      enhancement_factor: 1.3

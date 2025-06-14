@@ -8,6 +8,79 @@ src_dir = os.path.join(current_dir, 'src')
 sys.path.insert(0, src_dir)
 
 from enhanced_car_editor import EnhancedCarImageEditor
+from ai_beautifier import AIBeautifier
+from PIL import Image
+
+# Enhance image with AI-based beautify functionality
+def beautify_image(input_path, output_path):
+    print("✨ Applying AI-based beautify enhancements...")
+    
+    # Initialize AI beautifier
+    beautifier = AIBeautifier()
+    
+    # Load input image
+    input_image = Image.open(input_path)
+    
+    # Test different enhancement styles
+    styles = [
+        ("professional", "glossy"),
+        ("dramatic", "metallic"),
+        ("subtle", "chrome")
+    ]
+    
+    for i, (enhancement_level, style) in enumerate(styles):
+        print(f"   🎨 Applying {enhancement_level} {style} enhancement...")
+        
+        # Apply AI beautification
+        beautified = beautifier.beautify_car(
+            car_image=input_image,
+            enhancement_level=enhancement_level,
+            style=style
+        )
+        
+        # Save with style suffix
+        style_output = output_path.replace('.jpg', f'_{style}_{enhancement_level}.jpg')
+        beautified.save(style_output, quality=95)
+        print(f"   ✅ Saved: {style_output}")
+    
+    # Create a comparison image with all styles
+    comparison_path = output_path.replace('.jpg', '_ai_comparison.jpg')
+    
+    # Load all beautified versions for comparison
+    beautified_images = []
+    for enhancement_level, style in styles:
+        style_path = output_path.replace('.jpg', f'_{style}_{enhancement_level}.jpg')
+        beautified_images.append(Image.open(style_path))
+    
+    # Create comparison grid
+    create_comparison_grid([input_image] + beautified_images, 
+                          ["Original", "Glossy Pro", "Metallic Drama", "Chrome Subtle"], 
+                          comparison_path)
+    
+    print(f"✅ AI beautification complete with comparison: {comparison_path}")
+    
+    # Cleanup
+    beautifier.cleanup()
+
+def create_comparison_grid(images, labels, output_path):
+    """Create a comparison grid of images"""
+    # Resize all images to same size
+    target_size = (400, 300)
+    resized_images = [img.resize(target_size, Image.Resampling.LANCZOS) for img in images]
+    
+    # Create grid (2x2)
+    grid_width = target_size[0] * 2
+    grid_height = target_size[1] * 2
+    grid = Image.new('RGB', (grid_width, grid_height), 'white')
+    
+    # Paste images
+    positions = [(0, 0), (target_size[0], 0), (0, target_size[1]), (target_size[0], target_size[1])]
+    for i, (img, pos) in enumerate(zip(resized_images, positions)):
+        if i < len(resized_images):
+            grid.paste(img, pos)
+    
+    grid.save(output_path, quality=95)
+    print(f"   📊 Comparison grid saved: {output_path}")
 
 def main():
     # Initialize enhanced editor
@@ -56,6 +129,10 @@ def main():
     
     if success:
         print(f"✅ Successfully created comparison: output/enhanced_comparison.jpg")
+    
+    # Beautify the image using AI enhancements
+    beautify_output_path = "output/beautified_car.jpg"
+    beautify_image(input_image, beautify_output_path)
     
     print("\n✨ Enhanced car image processing complete!")
     print("\n🔍 Key improvements:")
