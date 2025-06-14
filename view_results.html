@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rezultate Procesare Profesională - Forecast AUTO</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .image-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        .image-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        .image-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .image-card h3 {
+            padding: 15px;
+            margin: 0;
+            background: #f8f8f8;
+            color: #333;
+            text-align: center;
+        }
+        .comparison {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .comparison h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .comparison-item {
+            text-align: center;
+        }
+        .comparison-item img {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .comparison-item h4 {
+            margin: 10px 0 5px 0;
+            color: #555;
+        }
+        .features {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .features h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .features ul {
+            list-style: none;
+            padding: 0;
+        }
+        .features li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .features li:before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 Rezultate Procesare Profesională - Forecast AUTO</h1>
+        
+        <div class="gallery">
+            <div class="image-card">
+                <img src="output/professional_showroom.jpg" alt="Showroom Style">
+                <h3>Stil Showroom</h3>
+            </div>
+            <div class="image-card">
+                <img src="output/professional_gradient.jpg" alt="Gradient Style">
+                <h3>Stil Gradient</h3>
+            </div>
+        </div>
+
+        <div class="comparison">
+            <h2>Comparație: Original vs. Procesat</h2>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <h4>Imagine Originală</h4>
+                    <img src="input/car.jpg" alt="Original">
+                </div>
+                <div class="comparison-item">
+                    <h4>Rezultat Profesional (Showroom)</h4>
+                    <img src="output/professional_showroom.jpg" alt="Procesat">
+                </div>
+            </div>
+        </div>
+
+        <div class="features">
+            <h2>✨ Caracteristici Implementate</h2>
+            <ul>
+                <li>Segmentare AI avansată cu U2Net pentru extracție precisă a mașinii</li>
+                <li>Rafinare profesională a marginilor pentru aspect natural</li>
+                <li>Îmbunătățiri profesionale: color grading, reflecții, claritate</li>
+                <li>Umbre realiste cu perspectivă corectă</li>
+                <li>Reflexii subtile pe podea pentru stil showroom</li>
+                <li>Efecte profesionale: vignette, film grain subtil</li>
+                <li>Balans de culoare optimizat pentru fotografie auto</li>
+                <li>Procesare GPU pentru performanță maximă</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

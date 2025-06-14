@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  car-editor:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./backgrounds:/app/backgrounds
+    command: python3 test_enhanced.py
