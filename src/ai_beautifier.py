@@ -10,6 +10,7 @@ from diffusers import (
 )
 from controlnet_aux import CannyDetector, OpenposeDetector
 import os
+from pathlib import Path
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -35,26 +36,62 @@ class AIBeautifier:
         print("✅ AI Beautifier ready!")
     
     def _load_models(self):
-        """Load ControlNet and Stable Diffusion models"""
+        """Load ControlNet and Stable Diffusion models with local caching"""
         try:
+            # Setup local cache directories
+            cache_dir = Path("models/cache")
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            
+            controlnet_cache = cache_dir / "controlnet-canny"
+            sd_cache = cache_dir / "stable-diffusion-v1-5"
+            
             # Load ControlNet model for car enhancement
             print("📥 Loading ControlNet model...")
-            self.controlnet = ControlNetModel.from_pretrained(
-                "lllyasviel/sd-controlnet-canny",
-                torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
-                use_safetensors=True
-            )
+            if controlnet_cache.exists() and any(controlnet_cache.iterdir()):
+                print("   Using cached ControlNet model...")
+                self.controlnet = ControlNetModel.from_pretrained(
+                    str(controlnet_cache),
+                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                    use_safetensors=True,
+                    local_files_only=True
+                )
+            else:
+                print("   Downloading ControlNet model (first time only)...")
+                self.controlnet = ControlNetModel.from_pretrained(
+                    "lllyasviel/sd-controlnet-canny",
+                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                    use_safetensors=True,
+                    cache_dir=str(cache_dir)
+                )
+                # Save to local cache
+                self.controlnet.save_pretrained(str(controlnet_cache))
             
             # Load Stable Diffusion pipeline with ControlNet
             print("📥 Loading Stable Diffusion pipeline...")
-            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
-                "runwayml/stable-diffusion-v1-5",
-                controlnet=self.controlnet,
-                torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
-                safety_checker=None,
-                requires_safety_checker=False,
-                use_safetensors=True
-            )
+            if sd_cache.exists() and any(sd_cache.iterdir()):
+                print("   Using cached Stable Diffusion model...")
+                self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
+                    str(sd_cache),
+                    controlnet=self.controlnet,
+                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                    safety_checker=None,
+                    requires_safety_checker=False,
+                    use_safetensors=True,
+                    local_files_only=True
+                )
+            else:
+                print("   Downloading Stable Diffusion model (first time only)...")
+                self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
+                    "runwayml/stable-diffusion-v1-5",
+                    controlnet=self.controlnet,
+                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                    safety_checker=None,
+                    requires_safety_checker=False,
+                    use_safetensors=True,
+                    cache_dir=str(cache_dir)
+                )
+                # Save to local cache
+                self.pipe.save_pretrained(str(sd_cache))
             
             # Optimize for memory and speed
             self.pipe.scheduler = DDIMScheduler.from_config(self.pipe.scheduler.config)
@@ -72,20 +109,36 @@ class AIBeautifier:
                 except:
                     print("⚠️  XFormers not available, using standard attention")
             
-            # Load img2img pipeline for refinement
+            # Load img2img pipeline for refinement (reuse the same base model)
             print("📥 Loading img2img pipeline...")
-            self.img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-                "runwayml/stable-diffusion-v1-5",
-                torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
-                safety_checker=None,
-                requires_safety_checker=False,
-                use_safetensors=True
-            )
+            if sd_cache.exists() and any(sd_cache.iterdir()):
+                print("   Using cached model for img2img...")
+                self.img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                    str(sd_cache),
+                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                    safety_checker=None,
+                    requires_safety_checker=False,
+                    use_safetensors=True,
+                    local_files_only=True
+                )
+            else:
+                print("   Creating img2img pipeline from cached components...")
+                self.img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                    "runwayml/stable-diffusion-v1-5",
+                    torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32,
+                    safety_checker=None,
+                    requires_safety_checker=False,
+                    use_safetensors=True,
+                    cache_dir=str(cache_dir)
+                )
+            
             self.img2img_pipe = self.img2img_pipe.to(self.device)
             
             if self.device.type == 'cuda':
                 self.img2img_pipe.enable_attention_slicing()
                 self.img2img_pipe.enable_model_cpu_offload()
+            
+            print("✅ All models loaded successfully!")
                 
         except Exception as e:
             print(f"⚠️  Error loading AI models: {e}")

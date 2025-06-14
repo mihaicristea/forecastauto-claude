@@ -11,6 +11,7 @@ services:
       - ./input:/app/input
       - ./output:/app/output
       - ./backgrounds:/app/backgrounds
+      - ./models:/app/models
     command: python3 src/main.py --input input/car.jpg --output output/edited.jpg
   
   # Test AI Beautifier
@@ -24,6 +25,7 @@ services:
       - ./input:/app/input
       - ./output:/app/output
       - ./backgrounds:/app/backgrounds
+      - ./models:/app/models
     command: python3 test_ai_beautifier.py
   
   # Demo AI Beautifier
@@ -37,4 +39,5 @@ services:
       - ./input:/app/input
       - ./output:/app/output
       - ./backgrounds:/app/backgrounds
+      - ./models:/app/models
     command: python3 demo_ai_beautifier.py

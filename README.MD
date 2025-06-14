@@ -37,6 +37,13 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
+3. **Pre-download AI models (recommended):**
+```bash
+# Download and cache AI models once for faster future runs
+./scripts/download_models.sh
+```
+This will build the Docker image and download the ControlNet and Stable Diffusion models (~1.5GB) inside the container, then cache them locally. Future runs will be much faster!
+
 ## 🎮 Usage
 
 ### Quick Start:
@@ -258,14 +265,27 @@ python3 test_simple.py
    ./scripts/run.sh --ai-level light
    ```
 
-5. **AI models not loading:**
+5. **AI models downloading every time:**
+   ```bash
+   # Pre-download and cache models once
+   ./scripts/download_models.sh
+   
+   # Check if models are cached
+   ls -la models/cache/
+   
+   # If cache is corrupted, clear and re-download
+   rm -rf models/cache/
+   ./scripts/download_models.sh
+   ```
+
+6. **AI models not loading:**
    ```bash
    # Check internet connection for model download
    # Or use traditional enhancement
    ./scripts/run.sh --disable-ai --enhance
    ```
 
-6. **Permission denied:**
+7. **Permission denied:**
    ```bash
    chmod +x scripts/*.sh
    chmod -R 755 input output
