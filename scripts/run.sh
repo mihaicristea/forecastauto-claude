@@ -51,6 +51,8 @@ show_usage() {
     echo "  --colors COLORS         Generate color variations (comma-separated)"
     echo "  --logo-text TEXT        Logo text (default: 'Forecast AUTO')"
     echo "  --no-logo               Disable logo overlay"
+    echo "  --plate-text TEXT       Add license plate with text"
+    echo "  --plate-style STYLE     License plate style: eu, ro, us, uk (default: eu)"
     echo "  --enhance               Apply additional enhancement"
     echo "  --quality N             JPEG quality 70-100 (default: 95)"
     echo "  -v, --verbose           Verbose output"
@@ -112,6 +114,14 @@ while [[ $# -gt 0 ]]; do
         --no-logo)
             EXTRA_ARGS="$EXTRA_ARGS --no-logo"
             shift
+            ;;
+        --plate-text)
+            EXTRA_ARGS="$EXTRA_ARGS --plate-text \"$2\""
+            shift 2
+            ;;
+        --plate-style)
+            EXTRA_ARGS="$EXTRA_ARGS --plate-style \"$2\""
+            shift 2
             ;;
         --enhance)
             EXTRA_ARGS="$EXTRA_ARGS --enhance"
@@ -214,11 +224,11 @@ if [ -n "$VERBOSE" ]; then
     ARGS+=("$VERBOSE")
 fi
 
-# Add extra args
+# Add extra args with proper quoting
 if [ -n "$EXTRA_ARGS" ]; then
-    # Split EXTRA_ARGS into array to handle multiple arguments
-    IFS=' ' read -ra EXTRA_ARRAY <<< "$EXTRA_ARGS"
-    ARGS+=("${EXTRA_ARRAY[@]}")
+    # Use eval to properly handle quoted arguments
+    eval "set -- $EXTRA_ARGS"
+    ARGS+=("$@")
 fi
 
 # Run with Docker using array for proper argument handling

@@ -74,9 +74,9 @@ class EnhancedCarImageEditor:
             car_rgba = self._extract_car_perfect(img)
             
             print("🏷️  Step 2: Smart license plate replacement...")
-            # Replace license plate with logo (like your original script)
-            if use_logo_plate:
-                car_rgba = self._replace_license_plate_smart(car_rgba, logo_text)
+            # Skip old license plate replacement - will use new perspective method later
+            # if use_logo_plate:
+            #     car_rgba = self._replace_license_plate_smart(car_rgba, logo_text)
             
             print("✨ Step 3: Professional car enhancement...")
             # Extract AI parameters from kwargs
@@ -178,20 +178,22 @@ class EnhancedCarImageEditor:
             return car_rgba
     
     def _detect_license_plate_enhanced(self, car_rgb):
-        """Enhanced license plate detection (from your original script)"""
+        """Enhanced license plate detection with professional algorithms"""
         try:
             car_cv = cv2.cvtColor(np.array(car_rgb), cv2.COLOR_RGB2BGR)
             height, width = car_cv.shape[:2]
             
-            # Convert to HSV for better color detection
+            print(f"   🔍 Analyzing image {width}x{height} for license plate...")
+            
+            # Method 1: Color-based detection (white/yellow license plates)
             hsv = cv2.cvtColor(car_cv, cv2.COLOR_BGR2HSV)
             
-            # Mask for white/light colors (license plates)
-            lower_white = np.array([0, 0, 140])
-            upper_white = np.array([180, 60, 255])
+            # Enhanced white mask (more permissive)
+            lower_white = np.array([0, 0, 140])  # Lower brightness threshold
+            upper_white = np.array([180, 60, 255])  # Higher saturation tolerance
             mask_white = cv2.inRange(hsv, lower_white, upper_white)
             
-            # Mask for yellow (EU plates)
+            # Enhanced yellow mask (EU plates)
             lower_yellow = np.array([15, 60, 60])
             upper_yellow = np.array([40, 255, 255])
             mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
@@ -199,51 +201,133 @@ class EnhancedCarImageEditor:
             # Combine color masks
             color_mask = cv2.bitwise_or(mask_white, mask_yellow)
             
-            # Morphological operations to connect characters
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (13, 3))
-            morphed = cv2.morphologyEx(color_mask, cv2.MORPH_CLOSE, kernel)
-            morphed = cv2.dilate(morphed, None, iterations=2)
+            # Method 2: Edge-based detection for text patterns
+            gray = cv2.cvtColor(car_cv, cv2.COLOR_BGR2GRAY)
+            
+            # Apply bilateral filter to reduce noise while preserving edges
+            gray_filtered = cv2.bilateralFilter(gray, 11, 17, 17)
+            
+            # Sobel gradients to detect text patterns
+            grad_x = cv2.Sobel(gray_filtered, cv2.CV_32F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(gray_filtered, cv2.CV_32F, 0, 1, ksize=3)
+            magnitude = np.sqrt(grad_x**2 + grad_y**2)
+            magnitude = np.uint8(magnitude)
+            
+            # Combine color and edge detection
+            combined = cv2.bitwise_and(magnitude, magnitude, mask=color_mask)
+            
+            # Morphological operations to connect characters into license plate regions
+            kernel_connect = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 4))  # Wider kernel
+            morphed = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel_connect)
+            
+            # Additional dilation to ensure complete plate coverage
+            kernel_dilate = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            morphed = cv2.dilate(morphed, kernel_dilate, iterations=2)
             
             # Find contours
             contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
             candidates = []
             
-            for contour in contours:
+            print(f"   📋 Found {len(contours)} potential regions")
+            
+            for i, contour in enumerate(contours):
                 x, y, w, h = cv2.boundingRect(contour)
                 aspect_ratio = w / float(h) if h > 0 else 0
                 area = cv2.contourArea(contour)
                 
-                # Filter potential license plates
-                if (2.0 <= aspect_ratio <= 6.0 and
-                    area > 200 and
-                    w > 40 and h > 10 and
-                    w < width * 0.5 and h < height * 0.15 and
-                    y > height * 0.5):
-                    
-                    # Calculate position scores
-                    center_x = x + w/2
-                    horizontal_score = 1.0 - abs(center_x - width/2) / (width/2)
-                    vertical_score = (y + h/2) / height
-                    aspect_score = 1.0 / (1.0 + abs(aspect_ratio - 4.5))
-                    
-                    total_score = (horizontal_score * 0.4 + 
-                                 vertical_score * 0.3 + 
-                                 aspect_score * 0.3)
-                    
-                    candidates.append((x, y, w, h, total_score))
+                # Professional license plate criteria
+                min_area = 200
+                min_width, min_height = 40, 10
+                max_width_ratio, max_height_ratio = 0.5, 0.15
+                min_aspect, max_aspect = 2.0, 8.0
+                
+                # Initial filtering
+                if not (min_aspect <= aspect_ratio <= max_aspect and
+                        area >= min_area and
+                        w >= min_width and h >= min_height and
+                        w <= width * max_width_ratio and h <= height * max_height_ratio and
+                        y >= height * 0.4):  # Must be in lower part of image
+                    continue
+                
+                # Calculate professional scoring metrics
+                
+                # 1. Aspect ratio score (ideal is around 4.5-5.0 for EU plates)
+                ideal_aspect = 4.7
+                aspect_score = 1.0 / (1.0 + abs(aspect_ratio - ideal_aspect) * 0.5)
+                
+                # 2. Horizontal centering score
+                center_x = x + w/2
+                horizontal_center_score = 1.0 - abs(center_x - width/2) / (width/2)
+                
+                # 3. Vertical position score (license plates are typically in lower 60% of image)
+                vertical_position = (y + h/2) / height
+                if vertical_position >= 0.6:
+                    vertical_score = 1.0  # Ideal position
+                elif vertical_position >= 0.4:
+                    vertical_score = 0.8  # Good position
+                else:
+                    vertical_score = 0.3  # Poor position
+                
+                # 4. Solidity score (how filled the contour is)
+                hull = cv2.convexHull(contour)
+                hull_area = cv2.contourArea(hull)
+                solidity = area / float(hull_area) if hull_area > 0 else 0
+                solidity_score = solidity if solidity >= 0.7 else solidity * 0.5
+                
+                # 5. Size appropriateness score
+                # License plates should be a reasonable size relative to the image
+                relative_width = w / width
+                relative_height = h / height
+                if 0.1 <= relative_width <= 0.3 and 0.02 <= relative_height <= 0.08:
+                    size_score = 1.0
+                else:
+                    size_score = 0.6
+                
+                # 6. Edge proximity penalty
+                edge_penalty = 1.0
+                if x < width * 0.05 or (x + w) > width * 0.95:
+                    edge_penalty = 0.5  # Too close to edges
+                
+                # 7. Bottom proximity bonus
+                bottom_bonus = 1.0
+                if y + h > height * 0.7:
+                    bottom_bonus = 1.3  # Bonus for being in bottom area
+                
+                # Calculate composite score with weighted factors
+                total_score = (
+                    aspect_score * 0.25 +           # Aspect ratio is very important
+                    horizontal_center_score * 0.20 + # Horizontal centering matters
+                    vertical_score * 0.20 +          # Vertical position is crucial
+                    solidity_score * 0.15 +          # Solidity indicates real object
+                    size_score * 0.20                # Size appropriateness
+                ) * edge_penalty * bottom_bonus
+                
+                candidates.append((x, y, w, h, total_score, aspect_ratio, solidity, area))
+                
+                print(f"   📊 Candidate {i+1}: score={total_score:.3f}, AR={aspect_ratio:.2f}, "
+                      f"pos=({x},{y}), size=({w}x{h}), area={area}")
             
             if candidates:
-                # Sort by score and return best
+                # Sort by score and return best candidate
                 candidates.sort(key=lambda x: x[4], reverse=True)
                 best = candidates[0]
-                if best[4] > 0.5:
+                
+                print(f"   🎯 Best candidate: score={best[4]:.3f}, coords=({best[0]},{best[1]},{best[2]},{best[3]})")
+                
+                # Use higher threshold for enhanced detection
+                if best[4] > 0.6:
+                    print(f"   ✅ License plate detected successfully!")
                     return best[:4]
+                else:
+                    print(f"   ⚠️ Best score ({best[4]:.3f}) below threshold (0.6)")
+            else:
+                print(f"   ❌ No valid candidates found")
             
             return None
             
         except Exception as e:
-            print(f"Enhanced detection failed: {e}")
+            print(f"   ❌ Enhanced detection failed: {e}")
             return None
     
     def _detect_license_plate_simple(self, car_rgb):
@@ -308,47 +392,145 @@ class EnhancedCarImageEditor:
         return (plate_x, plate_y, plate_width, plate_height)
     
     def _replace_plate_with_logo(self, car_rgba, plate_coords, logo_text):
-        """Replace license plate area with logo text"""
+        """Replace license plate area with professional logo text integration"""
         try:
             plate_x, plate_y, plate_w, plate_h = plate_coords
             
-            # Add some padding
-            padding = int(plate_h * 0.10)
-            plate_x = max(0, plate_x - padding)
-            plate_y = max(0, plate_y - padding)
-            plate_w = min(car_rgba.width - plate_x, plate_w + 2 * padding)
-            plate_h = min(car_rgba.height - plate_y, plate_h + 2 * padding)
+            print(f"   🔧 Replacing license plate at ({plate_x},{plate_y}) size={plate_w}x{plate_h}")
             
-            # Create white rectangle with black border
+            # Intelligent padding based on plate size
+            padding_ratio = 0.15  # 15% padding
+            padding_x = max(2, int(plate_w * padding_ratio))
+            padding_y = max(2, int(plate_h * padding_ratio))
+            
+            # Expand plate area with bounds checking
+            plate_x = max(0, plate_x - padding_x)
+            plate_y = max(0, plate_y - padding_y)
+            plate_w = min(car_rgba.width - plate_x, plate_w + 2 * padding_x)
+            plate_h = min(car_rgba.height - plate_y, plate_h + 2 * padding_y)
+            
+            # Create a copy to work with
             car_with_plate = car_rgba.copy()
             draw = ImageDraw.Draw(car_with_plate)
             
-            # Draw white rectangle
-            draw.rectangle([plate_x, plate_y, plate_x + plate_w, plate_y + plate_h], 
-                         fill=(255, 255, 255, 255), outline=(0, 0, 0, 255), width=2)
+            # Professional license plate styling
             
-            # Add logo text
-            try:
-                # Calculate font size to fit
-                font_size = int(plate_h * 0.5)
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-            except:
+            # 1. Create white background with subtle gradient effect
+            plate_bg = Image.new('RGBA', (plate_w, plate_h), (255, 255, 255, 255))
+            
+            # Add subtle gradient for depth
+            bg_draw = ImageDraw.Draw(plate_bg)
+            for i in range(plate_h):
+                shade = int(255 - (i * 10 / plate_h))  # Very subtle gradient
+                shade = max(245, min(255, shade))
+                bg_draw.line([(0, i), (plate_w, i)], fill=(shade, shade, shade, 255))
+            
+            # 2. Add professional border
+            border_width = max(1, int(min(plate_w, plate_h) * 0.02))  # 2% of smaller dimension
+            bg_draw.rectangle(
+                [0, 0, plate_w-1, plate_h-1], 
+                outline=(0, 0, 0, 255), 
+                width=border_width
+            )
+            
+            # 3. Calculate optimal font size and load professional font
+            target_text_height = int(plate_h * 0.6)  # Text takes 60% of plate height
+            font_size = max(12, target_text_height)
+            
+            # Try to load professional fonts in order of preference
+            font = None
+            font_paths = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+                "/System/Library/Fonts/Helvetica.ttc",  # macOS
+                "/Windows/Fonts/arial.ttf"  # Windows
+            ]
+            
+            for font_path in font_paths:
+                try:
+                    import os
+                    if os.path.exists(font_path):
+                        font = ImageFont.truetype(font_path, font_size)
+                        print(f"   🔤 Using font: {os.path.basename(font_path)}")
+                        break
+                except:
+                    continue
+            
+            if font is None:
                 font = ImageFont.load_default()
+                print(f"   🔤 Using default font")
             
-            # Calculate text position for centering
-            bbox = draw.textbbox((0, 0), logo_text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            text_x = plate_x + (plate_w - text_width) // 2
-            text_y = plate_y + (plate_h - text_height) // 2
+            # 4. Calculate text positioning for perfect centering
+            try:
+                bbox = bg_draw.textbbox((0, 0), logo_text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+            except:
+                # Fallback for older PIL versions
+                text_width, text_height = bg_draw.textsize(logo_text, font=font)
             
-            # Draw text
-            draw.text((text_x, text_y), logo_text, fill=(0, 0, 0, 255), font=font)
+            # Auto-scale font if text is too large
+            scale_factor = 1.0
+            max_text_width = plate_w * 0.9  # 90% of plate width
+            max_text_height = plate_h * 0.7  # 70% of plate height
+            
+            if text_width > max_text_width:
+                scale_factor = min(scale_factor, max_text_width / text_width)
+            if text_height > max_text_height:
+                scale_factor = min(scale_factor, max_text_height / text_height)
+            
+            if scale_factor < 1.0:
+                new_font_size = int(font_size * scale_factor)
+                try:
+                    font = ImageFont.truetype(font_paths[0] if font_paths else None, new_font_size)
+                except:
+                    font = ImageFont.load_default()
+                
+                # Recalculate dimensions
+                try:
+                    bbox = bg_draw.textbbox((0, 0), logo_text, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+                except:
+                    text_width, text_height = bg_draw.textsize(logo_text, font=font)
+                
+                print(f"   📏 Auto-scaled font to size {new_font_size}")
+            
+            # Center the text perfectly
+            text_x = (plate_w - text_width) // 2
+            text_y = (plate_h - text_height) // 2
+            
+            # 5. Add text with professional styling
+            
+            # Shadow effect for depth (subtle)
+            shadow_offset = max(1, int(font_size * 0.05))
+            bg_draw.text(
+                (text_x + shadow_offset, text_y + shadow_offset), 
+                logo_text, 
+                fill=(128, 128, 128, 180),  # Gray shadow with transparency
+                font=font
+            )
+            
+            # Main text in crisp black
+            bg_draw.text(
+                (text_x, text_y), 
+                logo_text, 
+                fill=(0, 0, 0, 255), 
+                font=font
+            )
+            
+            # 6. Composite the plate onto the car
+            car_with_plate.paste(plate_bg, (plate_x, plate_y), plate_bg)
+            
+            print(f"   ✅ License plate replaced successfully with '{logo_text}'")
             
             return car_with_plate
             
         except Exception as e:
-            print(f"⚠️  Logo replacement failed: {e}")
+            print(f"   ❌ Logo replacement failed: {e}")
+            import traceback
+            traceback.print_exc()
             return car_rgba
     
     def _enhance_car_professional(self, car_rgba):

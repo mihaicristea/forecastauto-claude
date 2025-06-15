@@ -67,6 +67,13 @@ Examples:
     parser.add_argument('--no-logo', action='store_true',
                        help='Disable logo overlay')
     
+    # License Plate
+    parser.add_argument('--plate-text', type=str,
+                       help='License plate text to add')
+    parser.add_argument('--plate-style', type=str, default='eu',
+                       choices=['eu', 'ro', 'us', 'uk'],
+                       help='License plate style (default: eu)')
+    
     # Advanced options
     parser.add_argument('--enhance', action='store_true',
                        help='Apply additional image enhancement')
@@ -129,6 +136,38 @@ Examples:
             sys.exit(1)
         
         print(f"✅ Main image saved: {args.output}")
+        
+        # Process license plate if requested
+        if args.plate_text:
+            print("\n🚗 Adding perspective-aware license plate...")
+            try:
+                from license_plate_perspective import PerspectivePlateProcessor
+                plate_processor = PerspectivePlateProcessor()
+                
+                # Generate output path for plate version
+                base_name = os.path.splitext(args.output)[0]
+                plate_output = f"{base_name}_with_plate.jpg"
+                
+                # Use the new perspective-aware processor
+                plate_result = plate_processor.process_image(
+                    image_path=args.output,  # Use the processed image as input
+                    logo_text=args.plate_text,  # Correct parameter name
+                    style=args.plate_style,  # Use style instead of plate_style
+                    output_path=plate_output
+                )
+                
+                if plate_result:
+                    print(f"✅ Perspective license plate added: {plate_output}")
+                    # Update the main output to the plate version
+                    args.output = plate_output
+                else:
+                    print("⚠️  Perspective plate processing failed, continuing with original")
+                    
+            except Exception as e:
+                print(f"⚠️  Perspective plate processing error: {e}")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
         
         # Generate color variations if requested
         if args.color_variations:

@@ -9,6 +9,7 @@ from transformers import pipeline, AutoImageProcessor, AutoModelForImageSegmenta
 from rembg import remove, new_session
 import requests
 from io import BytesIO
+from license_plate_perspective import PerspectivePlateProcessor
 
 # Add parent directory to path to import modules
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +60,14 @@ class CarImageEditor:
             # Fallback to standard model
             self.rembg_session = new_session()
             print("✅ Loaded standard segmentation model")
+        # Initialize perspective license plate processor
+        print("🔧 Loading perspective license plate processor...")
+        try:
+            self.plate_processor = PerspectivePlateProcessor()
+            print("✅ Perspective plate processor loaded")
+        except Exception as e:
+            print(f"⚠️  Perspective plate processor initialization failed: {e}")
+            self.plate_processor = None
     
     def process_image(self, input_path, output_path, background_type='showroom', 
                      custom_background=None, logo_text='Forecast AUTO', 
@@ -434,10 +443,41 @@ class CarImageEditor:
         return image.filter(ImageFilter.UnsharpMask(radius=1, percent=150, threshold=3))
     
     def _add_professional_branding(self, car_rgba, logo_text):
-        """Add professional branding without damaging the car"""
-        # For now, return the car as-is
-        # The text_overlay module can be enhanced separately
-        return car_rgba
+        """Add professional branding with perspective-aware license plate replacement"""
+        if not logo_text or self.plate_processor is None:
+            return car_rgba
+        
+        try:
+            print("   🎯 Detecting and replacing license plate with perspective correction...")
+            
+            # Save temporary image for processing
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                car_rgba.save(tmp.name, 'PNG')
+                temp_path = tmp.name
+            
+            # Process with perspective plate processor
+            result = self.plate_processor.process_image(
+                temp_path, 
+                logo_text, 
+                style='eu'  # Can be made configurable
+            )
+            
+            # Clean up temp file
+            import os
+            os.unlink(temp_path)
+            
+            # Convert back to RGBA if needed
+            if result.mode != 'RGBA':
+                result = result.convert('RGBA')
+            
+            print("   ✅ License plate replaced successfully")
+            return result
+            
+        except Exception as e:
+            print(f"   ⚠️  Perspective plate replacement failed: {e}")
+            # Fallback to original image
+            return car_rgba
     
     def _composite_professional(self, car_rgba, background):
         """Professional compositing with realistic shadows and reflections"""
@@ -583,3 +623,24 @@ class CarImageEditor:
         img_np = np.clip(img_np, 0, 255).astype(np.uint8)
         
         return Image.fromarray(img_np)
+
+    def replace_license_plate_only(self, input_path, output_path, logo_text='Forecast AUTO', style='eu'):
+        """
+        Replace only the license plate with perspective correction
+        Useful for testing or when you just need plate replacement
+        """
+        if self.plate_processor is None:
+            print("❌ Perspective plate processor not available")
+            return False
+        
+        try:
+            result = self.plate_processor.process_image(
+                input_path,
+                logo_text,
+                style,
+                output_path
+            )
+            return True
+        except Exception as e:
+            print(f"❌ Error replacing license plate: {e}")
+            return False
