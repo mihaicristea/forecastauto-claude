@@ -16,6 +16,10 @@ AI_STYLE="glossy"
 AI_LEVEL="medium"
 LOGO_TEXT="Forecast AUTO"
 QUALITY=95
+DISABLE_AI=""
+ENHANCE=""
+NO_LOGO=""
+PRESERVE_CAR=""
 VERBOSE=""
 EXTRA_ARGS=""
 
@@ -42,6 +46,7 @@ show_usage() {
     echo "  --custom-bg FILE        Custom background image (use with -b custom)"
     echo "  --ai-style STYLE        AI style: glossy, matte, metallic, luxury (default: glossy)"
     echo "  --ai-level LEVEL        AI level: light, medium, strong (default: medium)"
+    echo "  --preserve-car          Preserve car unchanged, enhance only background"
     echo "  --disable-ai            Disable AI beautification"
     echo "  --colors COLORS         Generate color variations (comma-separated)"
     echo "  --logo-text TEXT        Logo text (default: 'Forecast AUTO')"
@@ -87,6 +92,10 @@ while [[ $# -gt 0 ]]; do
         --ai-level)
             AI_LEVEL="$2"
             shift 2
+            ;;
+        --preserve-car)
+            PRESERVE_CAR="--preserve-car"
+            shift
             ;;
         --disable-ai)
             EXTRA_ARGS="$EXTRA_ARGS --disable-ai"
@@ -184,11 +193,36 @@ mkdir -p output
 echo -e "${PURPLE}🎨 Processing car image...${NC}"
 echo ""
 
-# Build the command
-CMD="python3 src/main.py --input $INPUT_FILE --output $OUTPUT_FILE --background $BACKGROUND --ai-style $AI_STYLE --ai-level $AI_LEVEL --logo-text \"$LOGO_TEXT\" --quality $QUALITY $VERBOSE $EXTRA_ARGS"
+# Build the command components
+ARGS=(
+    "--input" "$INPUT_FILE"
+    "--output" "$OUTPUT_FILE" 
+    "--background" "$BACKGROUND"
+    "--ai-style" "$AI_STYLE"
+    "--ai-level" "$AI_LEVEL"
+    "--logo-text" "$LOGO_TEXT"
+    "--quality" "$QUALITY"
+)
 
-# Run with Docker
-docker compose run --rm car-editor bash -c "$CMD"
+# Add preserve-car if set
+if [ -n "$PRESERVE_CAR" ]; then
+    ARGS+=("$PRESERVE_CAR")
+fi
+
+# Add verbose if set
+if [ -n "$VERBOSE" ]; then
+    ARGS+=("$VERBOSE")
+fi
+
+# Add extra args
+if [ -n "$EXTRA_ARGS" ]; then
+    # Split EXTRA_ARGS into array to handle multiple arguments
+    IFS=' ' read -ra EXTRA_ARRAY <<< "$EXTRA_ARGS"
+    ARGS+=("${EXTRA_ARRAY[@]}")
+fi
+
+# Run with Docker using array for proper argument handling
+docker compose run --rm car-editor python3 src/main.py "${ARGS[@]}"
 
 # Check if processing was successful
 if [[ $? -eq 0 ]]; then

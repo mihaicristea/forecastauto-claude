@@ -7,7 +7,7 @@ import argparse
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from car_editor import CarImageEditor
+from enhanced_car_editor import EnhancedCarImageEditor
 
 def main():
     print("🚗 Professional Car Image Editor with AI Beautifier v2.0")
@@ -50,8 +50,10 @@ Examples:
                        choices=['glossy', 'matte', 'metallic', 'luxury'],
                        help='AI beautification style (default: glossy)')
     parser.add_argument('--ai-level', type=str, default='medium',
-                       choices=['light', 'medium', 'strong'],
-                       help='AI enhancement level (default: medium)')
+                       choices=['light', 'medium', 'strong', 'professional', 'dramatic', 'subtle'],
+                       help='AI enhancement level (default: medium). Standard: light/medium/strong, Enhanced: professional/dramatic/subtle')
+    parser.add_argument('--preserve-car', action='store_true',
+                       help='Preserve car unchanged, enhance only background')
     parser.add_argument('--disable-ai', action='store_true',
                        help='Disable AI beautification (use traditional enhancement)')
     
@@ -97,14 +99,15 @@ Examples:
         print(f"   AI Style: {args.ai_style}")
         print(f"   AI Level: {args.ai_level}")
         print(f"   AI Enabled: {not args.disable_ai}")
+        print(f"   Preserve Car: {args.preserve_car}")
         if args.color_variations:
             print(f"   Color Variations: {args.color_variations}")
         print()
     
     try:
         # Initialize editor
-        print("🔧 Initializing Professional Car Image Editor...")
-        editor = CarImageEditor()
+        print("🔧 Initializing Enhanced Car Image Editor...")
+        editor = EnhancedCarImageEditor()
         
         # Process main image
         print("🎨 Processing main image...")
@@ -117,7 +120,8 @@ Examples:
             ai_style=args.ai_style if not args.disable_ai else None,
             ai_level=args.ai_level if not args.disable_ai else None,
             enhance=args.enhance,
-            quality=args.quality
+            quality=args.quality,
+            preserve_car=args.preserve_car
         )
         
         if not result:

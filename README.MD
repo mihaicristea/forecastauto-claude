@@ -56,6 +56,9 @@ This will build the Docker image and download the ControlNet and Stable Diffusio
 # Professional glossy finish
 ./scripts/run.sh -i input/car.jpg -b showroom --ai-style glossy --ai-level medium
 
+# Preserve car unchanged, enhance only background
+./scripts/run.sh -i input/car.jpg -b showroom --ai-style glossy --ai-level medium --preserve-car
+
 # Luxury metallic with studio background
 ./scripts/run.sh -i input/car.jpg -b studio --ai-style luxury --ai-level strong
 
@@ -80,6 +83,7 @@ Options:
   --custom-bg FILE        Custom background image
   --ai-style STYLE        AI style: glossy, matte, metallic, luxury
   --ai-level LEVEL        AI level: light, medium, strong
+  --preserve-car          Preserve car unchanged, enhance only background
   --disable-ai            Disable AI beautification
   --colors COLORS         Generate color variations (comma-separated)
   --logo-text TEXT        Logo text (default: 'Forecast AUTO')
@@ -131,6 +135,7 @@ Generează automat variații de culoare pentru aceeași mașină:
 - 🎨 **ControlNet integration** pentru control precis
 - ✨ **Professional effects** - eliminare pete, reflexii soft, vopsea lucioasă
 - 🚀 **GPU optimization** cu XFormers și attention slicing
+- 🎯 **Preserve Car Mode** - păstrează mașina neschimbată, beautify doar background-ul
 
 ## 🎨 Background Options
 

@@ -1,4 +1,4 @@
-version: '3.8'
+# Removed obsolete version field
 
 services:
   car-editor:
@@ -7,11 +7,17 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - U2NET_HOME=/app/models/cache/rembg
+      - TRANSFORMERS_CACHE=/app/models/cache
+      - HF_HOME=/app/models/cache
+      - HUGGINGFACE_HUB_CACHE=/app/models/cache
     volumes:
       - ./input:/app/input
       - ./output:/app/output
       - ./backgrounds:/app/backgrounds
       - ./models:/app/models
+      - ./src:/app/src  # Add source code mount
+      - ./models/cache/rembg:/root/.u2net  # Cache rembg models
     command: python3 src/main.py --input input/car.jpg --output output/edited.jpg
   
   # Test AI Beautifier
@@ -21,11 +27,16 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - U2NET_HOME=/app/models/cache/rembg
+      - TRANSFORMERS_CACHE=/app/models/cache
+      - HF_HOME=/app/models/cache
+      - HUGGINGFACE_HUB_CACHE=/app/models/cache
     volumes:
       - ./input:/app/input
       - ./output:/app/output
       - ./backgrounds:/app/backgrounds
       - ./models:/app/models
+      - ./models/cache/rembg:/root/.u2net  # Cache rembg models
     command: python3 test_ai_beautifier.py
   
   # Demo AI Beautifier
@@ -35,9 +46,14 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - U2NET_HOME=/app/models/cache/rembg
+      - TRANSFORMERS_CACHE=/app/models/cache
+      - HF_HOME=/app/models/cache
+      - HUGGINGFACE_HUB_CACHE=/app/models/cache
     volumes:
       - ./input:/app/input
       - ./output:/app/output
       - ./backgrounds:/app/backgrounds
       - ./models:/app/models
+      - ./models/cache/rembg:/root/.u2net  # Cache rembg models
     command: python3 demo_ai_beautifier.py

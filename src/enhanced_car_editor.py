@@ -79,8 +79,17 @@ class EnhancedCarImageEditor:
                 car_rgba = self._replace_license_plate_smart(car_rgba, logo_text)
             
             print("✨ Step 3: Professional car enhancement...")
-            # Enhance the car image professionally
-            enhanced_car = self._enhance_car_professional(car_rgba)
+            # Extract AI parameters from kwargs
+            ai_style = kwargs.get('ai_style', None)
+            ai_level = kwargs.get('ai_level', None)
+            preserve_car = kwargs.get('preserve_car', True)
+            disable_ai = kwargs.get('disable_ai', False)
+            
+            # Enhanced car image professionally with AI support
+            if ai_style and ai_level and not disable_ai:
+                enhanced_car = self._enhance_car_with_ai(car_rgba, ai_style, ai_level, preserve_car)
+            else:
+                enhanced_car = self._enhance_car_professional(car_rgba)
             
             print("🖼️  Step 4: Creating studio-quality background...")
             # Create professional background
@@ -369,6 +378,36 @@ class EnhancedCarImageEditor:
         # Merge back with alpha
         r, g, b = car_rgb.split()
         return Image.merge('RGBA', (r, g, b, a))
+    
+    def _enhance_car_with_ai(self, car_rgba, ai_style, ai_level, preserve_car=True):
+        """Enhanced car processing with AI Beautifier support"""
+        try:
+            # Initialize AI Beautifier if not already done
+            if not hasattr(self, 'ai_beautifier'):
+                print("   🤖 Initializing AI Beautifier...")
+                from ai_beautifier import AIBeautifier
+                self.ai_beautifier = AIBeautifier()
+            
+            # Apply AI beautification
+            if self.ai_beautifier:
+                enhance_mode = "background only" if preserve_car else "full image"
+                print(f"   ✨ Applying AI enhancement ({ai_level} {ai_style}, {enhance_mode})...")
+                
+                enhanced = self.ai_beautifier.beautify_car(
+                    car_rgba,
+                    enhancement_level=ai_level,
+                    style=ai_style,
+                    preserve_car=preserve_car
+                )
+                return enhanced
+            else:
+                print("   ⚠️ AI Beautifier not available, using traditional enhancement")
+                return self._enhance_car_professional(car_rgba)
+                
+        except Exception as e:
+            print(f"   ⚠️ AI enhancement failed: {e}")
+            print("   📝 Falling back to traditional enhancement")
+            return self._enhance_car_professional(car_rgba)
     
     def _color_match_with_background(self, car_rgba, background):
         """Color match car with background (from your original script)"""

@@ -12,7 +12,13 @@ from controlnet_aux import CannyDetector, OpenposeDetector
 import os
 from pathlib import Path
 import warnings
-warnings.filterwarnings("ignore")
+
+# Suppress common warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="controlnet_aux")
+warnings.filterwarnings("ignore", category=FutureWarning, module="timm")
+warnings.filterwarnings("ignore", message=".*mediapipe.*")
+warnings.filterwarnings("ignore", message=".*tiny_vit.*")
+warnings.filterwarnings("ignore", message=".*registry.*")
 
 class AIBeautifier:
     """
@@ -181,8 +187,6 @@ class AIBeautifier:
                         use_safetensors=True,
                         cache_dir=str(cache_dir)
                     )
-                    cache_dir=str(cache_dir)
-                )
             
             self.img2img_pipe = self.img2img_pipe.to(self.device)
             
@@ -199,20 +203,21 @@ class AIBeautifier:
             self.pipe = None
             self.img2img_pipe = None
     
-    def beautify_car(self, car_image, enhancement_level="medium", style="glossy"):
+    def beautify_car(self, car_image, enhancement_level="medium", style="glossy", preserve_car=True):
         """
-        Aplică beautify AI pe imaginea mașinii
+        Aplică beautify AI pe imaginea mașinii cu opțiunea de a păstra mașina neschimbată
         
         Args:
             car_image: PIL Image - imaginea mașinii (RGBA sau RGB)
             enhancement_level: str - "light", "medium", "strong"
             style: str - "glossy", "matte", "metallic", "luxury"
+            preserve_car: bool - dacă True, păstrează mașina și beautify doar background-ul
         
         Returns:
             PIL Image - imaginea îmbunătățită
         """
         try:
-            print(f"✨ AI Beautifying car with {enhancement_level} {style} enhancement...")
+            print(f"✨ AI Beautifying {'background only' if preserve_car else 'full image'} with {enhancement_level} {style} enhancement...")
             
             # Convert to RGB if needed
             if car_image.mode == 'RGBA':
@@ -224,14 +229,19 @@ class AIBeautifier:
                 car_rgb = car_image.convert('RGB')
                 alpha_channel = None
             
-            # Apply AI enhancement
-            if self.pipe is not None:
-                enhanced_rgb = self._ai_enhance_with_controlnet(car_rgb, enhancement_level, style)
+            # Choose enhancement method based on preserve_car setting
+            if preserve_car and alpha_channel:
+                # Method 1: Preserve car, enhance only background
+                enhanced_rgb = self._enhance_background_only(car_rgb, alpha_channel, enhancement_level, style)
             else:
-                enhanced_rgb = self._traditional_enhance(car_rgb, enhancement_level, style)
+                # Method 2: Traditional full image enhancement (with reduced intensity)
+                if self.pipe is not None:
+                    enhanced_rgb = self._ai_enhance_with_controlnet(car_rgb, enhancement_level, style, preserve_car)
+                else:
+                    enhanced_rgb = self._traditional_enhance(car_rgb, enhancement_level, style)
             
-            # Apply post-processing
-            enhanced_rgb = self._post_process_enhancement(enhanced_rgb, style)
+            # Apply subtle post-processing
+            enhanced_rgb = self._post_process_enhancement(enhanced_rgb, style, preserve_car)
             
             # Restore alpha channel if it existed
             if alpha_channel:
@@ -246,8 +256,8 @@ class AIBeautifier:
             # Fallback to original image
             return car_image
     
-    def _ai_enhance_with_controlnet(self, car_rgb, enhancement_level, style):
-        """Enhance using ControlNet + Stable Diffusion"""
+    def _ai_enhance_with_controlnet(self, car_rgb, enhancement_level, style, preserve_car=False):
+        """Enhance using ControlNet + Stable Diffusion with car preservation option"""
         try:
             # Resize for optimal processing
             original_size = car_rgb.size
@@ -263,19 +273,32 @@ class AIBeautifier:
             canny_image = self.canny_detector(car_resized)
             
             # Create enhancement prompt based on style
-            prompt = self._get_enhancement_prompt(style, enhancement_level)
+            if preserve_car:
+                prompt = self._get_subtle_enhancement_prompt(style, enhancement_level)
+                # Reduce AI influence when preserving car
+                guidance_scale = self._get_guidance_scale(enhancement_level) * 0.7
+                controlnet_scale = 0.5
+                steps = max(10, self._get_inference_steps(enhancement_level) - 5)
+            else:
+                prompt = self._get_enhancement_prompt(style, enhancement_level)
+                guidance_scale = self._get_guidance_scale(enhancement_level)
+                controlnet_scale = 0.8
+                steps = self._get_inference_steps(enhancement_level)
+            
             negative_prompt = self._get_negative_prompt()
+            if preserve_car:
+                negative_prompt += ", dramatic car changes, modified car structure, altered vehicle"
             
             # Generate enhanced image
-            print("   Generating AI enhancement...")
+            print(f"   Generating AI enhancement ({'subtle' if preserve_car else 'full'})...")
             with torch.autocast(self.device.type):
                 enhanced = self.pipe(
                     prompt=prompt,
                     negative_prompt=negative_prompt,
                     image=canny_image,
-                    num_inference_steps=self._get_inference_steps(enhancement_level),
-                    guidance_scale=self._get_guidance_scale(enhancement_level),
-                    controlnet_conditioning_scale=0.8,
+                    num_inference_steps=steps,
+                    guidance_scale=guidance_scale,
+                    controlnet_conditioning_scale=controlnet_scale,
                     generator=torch.Generator(device=self.device).manual_seed(42)
                 ).images[0]
             
@@ -329,12 +352,45 @@ class AIBeautifier:
         }
         
         level_modifiers = {
+            # Standard levels
             "light": "subtle enhancement, natural look",
             "medium": "enhanced beauty, improved finish",
-            "strong": "dramatic enhancement, perfect finish, flawless"
+            "strong": "dramatic enhancement, perfect finish, flawless",
+            # Enhanced levels
+            "professional": "professional studio finish, refined quality, elegant enhancement",
+            "dramatic": "bold dramatic enhancement, striking visual impact, premium quality",
+            "subtle": "very gentle enhancement, natural beauty, refined elegance"
         }
         
         return f"{base_prompt}, {style_prompts.get(style, style_prompts['glossy'])}, {level_modifiers.get(level, level_modifiers['medium'])}"
+    
+    def _get_subtle_enhancement_prompt(self, style, enhancement_level):
+        """Generate subtle enhancement prompts that preserve car structure"""
+        
+        base_prompt = "subtle automotive photography enhancement, natural lighting improvement"
+        
+        style_prompts = {
+            "glossy": "subtle glossy finish, natural reflections, gentle shine",
+            "matte": "natural matte finish, soft lighting enhancement",
+            "metallic": "subtle metallic highlights, gentle pearl effect",
+            "luxury": "refined finish, elegant lighting, premium quality"
+        }
+        
+        level_prompts = {
+            # Standard levels
+            "light": "very subtle enhancement, natural look",
+            "medium": "gentle enhancement, refined appearance",
+            "strong": "noticeable but natural enhancement, elegant finish",
+            # Enhanced levels
+            "professional": "professional enhancement, studio-quality refinement",
+            "dramatic": "enhanced but controlled changes, striking elegance",
+            "subtle": "minimal enhancement, natural beauty preservation"
+        }
+        
+        prompt = f"{base_prompt}, {style_prompts.get(style, '')}, {level_prompts.get(enhancement_level, '')}"
+        prompt += ", preserve original structure, natural enhancement, no dramatic changes"
+        
+        return prompt
     
     def _get_negative_prompt(self):
         """Get negative prompt to avoid unwanted artifacts"""
@@ -343,18 +399,28 @@ class AIBeautifier:
     def _get_inference_steps(self, level):
         """Get number of inference steps based on enhancement level"""
         steps = {
+            # Standard levels
             "light": 15,
             "medium": 25,
-            "strong": 35
+            "strong": 35,
+            # Enhanced levels
+            "professional": 30,
+            "dramatic": 40,
+            "subtle": 12
         }
         return steps.get(level, 25)
     
     def _get_guidance_scale(self, level):
         """Get guidance scale based on enhancement level"""
         scales = {
+            # Standard levels
             "light": 6.0,
             "medium": 7.5,
-            "strong": 9.0
+            "strong": 9.0,
+            # Enhanced levels
+            "professional": 8.0,
+            "dramatic": 10.0,
+            "subtle": 5.5
         }
         return scales.get(level, 7.5)
     
@@ -388,18 +454,22 @@ class AIBeautifier:
         enhanced = car_rgb.copy()
         
         # Enhancement based on level
-        if enhancement_level == "light":
+        if enhancement_level in ["light", "subtle"]:
             contrast_factor = 1.1
             brightness_factor = 1.05
             saturation_factor = 1.1
-        elif enhancement_level == "medium":
+        elif enhancement_level in ["medium", "professional"]:
             contrast_factor = 1.2
             brightness_factor = 1.1
             saturation_factor = 1.15
-        else:  # strong
+        elif enhancement_level in ["strong", "dramatic"]:
             contrast_factor = 1.3
             brightness_factor = 1.15
             saturation_factor = 1.2
+        else:  # fallback for any unknown levels
+            contrast_factor = 1.2
+            brightness_factor = 1.1
+            saturation_factor = 1.15
         
         # Apply enhancements
         enhancer = ImageEnhance.Contrast(enhanced)
@@ -446,21 +516,47 @@ class AIBeautifier:
         img_np = np.clip(img_np, 0, 255).astype(np.uint8)
         return Image.fromarray(img_np)
     
-    def _post_process_enhancement(self, enhanced_image, style):
+    def _post_process_enhancement(self, enhanced_image, style, preserve_car=True):
         """Apply final post-processing touches"""
-        # Subtle sharpening
-        enhanced = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=3))
+        enhanced = enhanced_image.copy()
+        
+        # Apply sharpening based on preserve_car setting
+        if preserve_car:
+            # Very subtle sharpening to maintain natural look
+            enhanced = enhanced.filter(ImageFilter.UnsharpMask(radius=0.8, percent=110, threshold=5))
+        else:
+            # Normal sharpening
+            enhanced = enhanced.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=3))
         
         # Style-specific post-processing
         if style == "glossy":
-            # Add slight blur to create depth
-            blurred = enhanced.filter(ImageFilter.GaussianBlur(radius=0.5))
-            enhanced = Image.blend(enhanced, blurred, 0.1)
+            if preserve_car:
+                # Very subtle glossy effect
+                enhancer = ImageEnhance.Contrast(enhanced)
+                enhanced = enhancer.enhance(1.05)
+            else:
+                # Add slight blur to create depth
+                blurred = enhanced.filter(ImageFilter.GaussianBlur(radius=0.5))
+                enhanced = Image.blend(enhanced, blurred, 0.1)
+        
+        elif style == "matte":
+            # Soften slightly for matte look
+            if preserve_car:
+                enhanced = enhanced.filter(ImageFilter.GaussianBlur(radius=0.3))
+            else:
+                enhanced = enhanced.filter(ImageFilter.GaussianBlur(radius=0.5))
+        
+        elif style == "metallic":
+            # Enhance contrast for metallic look
+            enhancer = ImageEnhance.Contrast(enhanced)
+            factor = 1.03 if preserve_car else 1.08
+            enhanced = enhancer.enhance(factor)
         
         elif style == "luxury":
             # Enhance overall quality
             enhancer = ImageEnhance.Sharpness(enhanced)
-            enhanced = enhancer.enhance(1.1)
+            factor = 1.05 if preserve_car else 1.1
+            enhanced = enhancer.enhance(factor)
         
         return enhanced
     
@@ -574,3 +670,167 @@ class AIBeautifier:
             torch.cuda.empty_cache()
         
         print("🧹 AI Beautifier memory cleaned up")
+    
+    def _enhance_background_only(self, car_rgb, alpha_channel, enhancement_level, style):
+        """Enhance doar background-ul, păstrând mașina neschimbată"""
+        print("   🎯 Enhancing background only, preserving car...")
+        
+        try:
+            # Create mask for car (alpha channel)
+            car_mask = np.array(alpha_channel) > 128  # Car areas
+            bg_mask = ~car_mask  # Background areas
+            
+            # Extract background
+            car_np = np.array(car_rgb)
+            background_np = car_np.copy()
+            
+            # Apply a simple background for AI enhancement (so AI has something to work with)
+            # Fill car area with average background color
+            if np.sum(bg_mask) > 0:
+                avg_bg_color = np.mean(car_np[bg_mask], axis=0).astype(np.uint8)
+            else:
+                avg_bg_color = np.array([200, 200, 200])  # Default gray
+            
+            # Create background-only image for AI enhancement
+            background_for_ai = background_np.copy()
+            background_for_ai[car_mask] = avg_bg_color
+            
+            background_pil = Image.fromarray(background_for_ai)
+            
+            # Apply AI enhancement to background
+            if self.pipe is not None:
+                # Use reduced strength for background enhancement
+                enhanced_bg = self._ai_enhance_background_specific(background_pil, enhancement_level, style)
+            else:
+                enhanced_bg = self._traditional_enhance_background(background_pil, enhancement_level, style)
+            
+            # Composite: original car + enhanced background
+            enhanced_np = np.array(enhanced_bg)
+            original_np = np.array(car_rgb)
+            
+            result_np = enhanced_np.copy()
+            # Restore original car pixels
+            result_np[car_mask] = original_np[car_mask]
+            
+            # Smooth transition at edges
+            result_np = self._smooth_car_background_transition(result_np, car_mask, original_np)
+            
+            return Image.fromarray(result_np.astype(np.uint8))
+            
+        except Exception as e:
+            print(f"   ⚠️ Background-only enhancement failed: {e}")
+            # Fallback to subtle traditional enhancement
+            return self._traditional_enhance(car_rgb, "light", style)
+    
+    def _ai_enhance_background_specific(self, background_pil, enhancement_level, style):
+        """AI enhancement specific pentru background"""
+        try:
+            # Create a background-focused prompt
+            prompt = self._get_background_enhancement_prompt(style, enhancement_level)
+            negative_prompt = self._get_negative_prompt()
+            
+            # Resize for processing
+            original_size = background_pil.size
+            process_size = self._get_optimal_size(original_size)
+            
+            if process_size != original_size:
+                bg_resized = background_pil.resize(process_size, Image.Resampling.LANCZOS)
+            else:
+                bg_resized = background_pil
+            
+            # Generate Canny for background structure
+            canny_image = self.canny_detector(bg_resized)
+            
+            # Apply ControlNet with reduced car influence
+            with torch.autocast(self.device.type):
+                enhanced = self.pipe(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt + ", car modifications, car changes",
+                    image=canny_image,
+                    num_inference_steps=15,  # Fewer steps for subtlety
+                    guidance_scale=5.0,  # Lower guidance for less dramatic changes
+                    controlnet_conditioning_scale=0.6,  # Reduced ControlNet influence
+                    generator=torch.Generator(device=self.device).manual_seed(42)
+                ).images[0]
+            
+            # Resize back if needed
+            if process_size != original_size:
+                enhanced = enhanced.resize(original_size, Image.Resampling.LANCZOS)
+            
+            return enhanced
+            
+        except Exception as e:
+            print(f"   ⚠️ AI background enhancement failed: {e}")
+            return background_pil
+    
+    def _get_background_enhancement_prompt(self, style, enhancement_level):
+        """Generate background-focused prompts"""
+        
+        base_prompt = "professional automotive photography background, studio lighting"
+        
+        style_prompts = {
+            "glossy": "glossy studio floor, reflective surfaces, premium showroom environment",
+            "matte": "matte studio background, soft lighting, elegant atmosphere",
+            "metallic": "metallic studio environment, professional lighting setup",
+            "luxury": "luxury showroom background, premium studio setting"
+        }
+        
+        level_prompts = {
+            # Standard levels
+            "light": "subtle lighting, natural atmosphere",
+            "medium": "professional studio lighting, polished environment",
+            "strong": "dramatic studio lighting, high-end showroom",
+            # Enhanced levels  
+            "professional": "professional automotive studio, refined lighting setup",
+            "dramatic": "dramatic showroom lighting, striking background effects",
+            "subtle": "gentle studio lighting, natural background enhancement"
+        }
+        
+        prompt = f"{base_prompt}, {style_prompts.get(style, '')}, {level_prompts.get(enhancement_level, '')}"
+        prompt += ", high quality background, professional automotive studio"
+        
+        return prompt
+    
+    def _traditional_enhance_background(self, background_pil, enhancement_level, style):
+        """Traditional background enhancement"""
+        # Apply subtle color grading and lighting effects
+        enhanced = background_pil.copy()
+        
+        # Adjust based on style
+        if style == "glossy":
+            # Increase brightness and contrast slightly
+            enhancer = ImageEnhance.Brightness(enhanced)
+            enhanced = enhancer.enhance(1.1)
+            enhancer = ImageEnhance.Contrast(enhanced)
+            enhanced = enhancer.enhance(1.15)
+        elif style == "matte":
+            # Soften and reduce contrast
+            enhanced = enhanced.filter(ImageFilter.GaussianBlur(radius=0.5))
+            enhancer = ImageEnhance.Contrast(enhanced)
+            enhanced = enhancer.enhance(0.95)
+        
+        return enhanced
+    
+    def _smooth_car_background_transition(self, result_np, car_mask, original_np):
+        """Smooth transition between original car and enhanced background"""
+        # Create a transition zone around car edges
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        car_mask_uint8 = car_mask.astype(np.uint8) * 255
+        
+        # Erode car mask to create transition zone
+        eroded_mask = cv2.erode(car_mask_uint8, kernel, iterations=2)
+        transition_mask = car_mask_uint8 - eroded_mask
+        
+        # Apply Gaussian blur to transition
+        transition_mask_blur = cv2.GaussianBlur(transition_mask, (7, 7), 0) / 255.0
+        
+        # Blend in transition areas
+        for i in range(3):  # RGB channels
+            transition_areas = transition_mask_blur > 0
+            if np.any(transition_areas):
+                result_np[transition_areas, i] = (
+                    result_np[transition_areas, i] * (1 - transition_mask_blur[transition_areas]) +
+                    original_np[transition_areas, i] * transition_mask_blur[transition_areas]
+                )
+        
+        return result_np

@@ -63,7 +63,7 @@ class CarImageEditor:
     def process_image(self, input_path, output_path, background_type='showroom', 
                      custom_background=None, logo_text='Forecast AUTO', 
                      ai_style='glossy', ai_level='medium', enhance=False, 
-                     quality=95, **kwargs):
+                     quality=95, use_ai_beautifier=True, **kwargs):
         try:
             print(f"\n📸 Processing: {os.path.basename(input_path)}")
             
@@ -90,9 +90,13 @@ class CarImageEditor:
             # Create professional background
             background = self._create_studio_background(img.size, background_type)
             
-            print("✨ Step 3: Professional car enhancement...")
-            # Enhance the car image professionally with AI parameters
-            enhanced_car = self._enhance_car_professional(car_rgba, ai_style, ai_level)
+            if use_ai_beautifier:
+                print("✨ Step 3: Professional car enhancement...")
+                preserve_car = kwargs.get('preserve_car', True)  # Default to preserve car
+                enhanced_car = self._enhance_car_professional(car_rgba, ai_style, ai_level, preserve_car)
+            else:
+                print("⏩ Skipping AI car enhancement")
+                enhanced_car = car_rgba
             
             print("🏷️  Step 4: Adding Forecast AUTO branding...")
             # Add professional branding
@@ -142,10 +146,16 @@ class CarImageEditor:
             car_rgba = remove(image, session=self.rembg_session, alpha_matting=True, 
                             alpha_matting_foreground_threshold=240,
                             alpha_matting_background_threshold=50,
-                            alpha_matting_erode_size=10)
+                            alpha_matting_erode_size=15)  # Increased erode size for better edge handling
             
-            # Refine edges for professional look
+            # Enhanced edge refinement
             car_rgba = self._refine_edges(car_rgba)
+            
+            # Additional morphological operation to clean small artifacts
+            car_np = np.array(car_rgba)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            car_np[:, :, 3] = cv2.morphologyEx(car_np[:, :, 3], cv2.MORPH_CLOSE, kernel)
+            car_rgba = Image.fromarray(car_np)
             
             return car_rgba
             
@@ -323,17 +333,19 @@ class CarImageEditor:
         black = Image.new('RGB', (width, height), (0, 0, 0))
         return Image.composite(image, black, mask)
     
-    def _enhance_car_professional(self, car_rgba, ai_style='glossy', ai_level='medium'):
+    def _enhance_car_professional(self, car_rgba, ai_style='glossy', ai_level='medium', preserve_car=True):
         """Apply professional automotive photography enhancements with AI Beautifier"""
         # Try AI Beautifier first if style and level are provided
         if self.ai_beautifier is not None and ai_style and ai_level:
             try:
-                print(f"   🤖 Applying AI Beautifier ({ai_level} {ai_style})...")
+                enhance_mode = "background only" if preserve_car else "full image"
+                print(f"   🤖 Applying AI Beautifier ({ai_level} {ai_style}, {enhance_mode})...")
                 # Apply AI beautification with specified parameters
                 enhanced_car = self.ai_beautifier.beautify_car(
                     car_rgba, 
                     enhancement_level=ai_level, 
-                    style=ai_style
+                    style=ai_style,
+                    preserve_car=preserve_car
                 )
                 return enhanced_car
             except Exception as e:
@@ -433,8 +445,12 @@ class CarImageEditor:
         if background.size != car_rgba.size:
             background = background.resize(car_rgba.size, Image.Resampling.LANCZOS)
         
-        # Create professional shadow
+        # Create enhanced professional shadow
         shadow = self._create_professional_shadow(car_rgba)
+        
+        # Apply Gaussian blur to shadow for smoother edges
+        if shadow:
+            shadow = shadow.filter(ImageFilter.GaussianBlur(radius=8))
         
         # Create floor reflection (for showroom style)
         reflection = self._create_floor_reflection(car_rgba)

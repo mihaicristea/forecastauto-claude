@@ -25,8 +25,14 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
+# Create cache directories
+RUN mkdir -p /app/models/cache/rembg
+
 # Download models
 RUN python3 models/download_models.py
+
+# Pre-cache rembg models
+RUN python3 scripts/cache_rembg.py
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -34,6 +40,9 @@ ENV CUDA_VISIBLE_DEVICES=0
 ENV TRANSFORMERS_CACHE=/app/models/cache
 ENV HF_HOME=/app/models/cache
 ENV HUGGINGFACE_HUB_CACHE=/app/models/cache
+ENV U2NET_HOME=/app/models/cache/rembg
+ENV PYTHONWARNINGS=ignore
+ENV TF_CPP_MIN_LOG_LEVEL=2
 
 CMD ["python3", "src/main.py"]
 

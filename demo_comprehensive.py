@@ -182,7 +182,8 @@ def demo_background_types():
                 background_type=bg_type,
                 ai_style="glossy",
                 ai_level="medium",
-                logo_text="Forecast AUTO"
+                logo_text="Forecast AUTO",
+                use_ai_beautifier=False  # Dezactivăm AI Beautifier pentru a păstra mașina intactă
             )
             processing_time = time.time() - start_time
             
